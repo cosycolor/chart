@@ -22,6 +22,7 @@ from src.chart_generator import ChartGenerator
 from src.news_searcher import NewsSearcher
 from src.gemini_analyzer import GeminiStockAnalyzer
 from src.tistory_publisher import TistoryPublisher
+from src.email_sender import EmailSender
 
 def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool = False, skip_ai: bool = False):
     """
@@ -71,7 +72,7 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
         print("\n⏩ 차트 생성을 건너뜁니다.")
 
     # 3. 뉴스 스크랩 및 AI 상승이유 분석
-    print("\n🔍 [뉴스 수집 및 Gemini LLM 상승 이유 팩트체크...]")
+    print("\n🔍 [뉴스 수집 및 Gemini LLM 상승 이유 분석...]")
     news_searcher = NewsSearcher()
     analyzer = GeminiStockAnalyzer() if not skip_ai else None
 
@@ -81,7 +82,7 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
         
         if analyzer and analyzer.client:
             print(f"    🤖 Gemini AI로 상승 이유 분석 중...")
-            ai_result = analyzer.analyze_stock_surge_reason(s, news_list)
+            ai_result = analyzer.analyze_stock_surge_reason(s, news_list, target_date=target_date)
             s['ai_analysis'] = ai_result
             print(f"    💡 [핵심 이유] {ai_result.get('core_reason', '')}")
         else:
@@ -138,18 +139,30 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
         f.write(html_content)
     print(f"💾 [미리보기 HTML 저장 완료] {os.path.abspath(report_file)}")
 
-    # 블로그 포스팅 (Dry-run이 아닐 때만)
-    if not dry_run:
-        post_title = f"[{target_date[:4]}.{target_date[4:6]}.{target_date[6:]}] 오늘의 상한가 및 1,000만주 특징주 총정리 (상승이유·40일차트)"
+    # 5. 이메일 발송 (네이버/Gmail 등)
+    if os.getenv("EMAIL_SENDER") and os.getenv("EMAIL_PASSWORD"):
+        print("\n📬 [이메일 리포트 발송 처리...]")
+        
+        # SEO 최적화 제목 및 태그 자동 생성
+        date_formatted = f"{target_date[:4]}.{target_date[4:6]}.{target_date[6:]}"
+        top_stock_names = [s['name'] for s in stocks[:3]]
+        
+        # 주요 테마 키워드 수집
         all_keywords = []
         for s in stocks:
             all_keywords.extend(s.get("ai_analysis", {}).get("theme_keywords", []))
             all_keywords.append(s['name'])
-        unique_tags = list(dict.fromkeys(all_keywords))[:10]
+        unique_tags = list(dict.fromkeys(all_keywords))[:12]
+        
+        highlight_keywords = [k for k in unique_tags if k not in top_stock_names and k not in ["KOSPI", "KOSDAQ", "특징주", "급등주"]][:2]
+        theme_str = f" {', '.join(highlight_keywords)}" if highlight_keywords else ""
+        stocks_str = "·".join(top_stock_names)
+        
+        seo_title = f"[{date_formatted}] 오늘의 상한가 및 특징주 총정리 ({stocks_str}{theme_str} 상승이유)"
+        seo_tags = ", ".join(unique_tags)
 
-        publisher.publish_post(post_title, html_content, tag_list=unique_tags)
-    else:
-        print("💡 Dry-Run 모드이므로 티스토리 포스팅 API는 호출하지 않았습니다.")
+        emailer = EmailSender()
+        emailer.send_report_email(target_date, html_content, attachment_path=report_file, seo_title=seo_title, seo_tags=seo_tags)
 
     print("\n✨ 모든 프로세스가 성공적으로 완료되었습니다!")
 
@@ -158,9 +171,25 @@ def main():
     parser.add_argument("--date", type=str, default=None, help="기준 일자 (YYYYMMDD). 미입력 시 최근 영업일 자동 계산")
     parser.add_argument("--dry-run", action="store_true", help="티스토리 포스팅을 하지 않고 로컬 HTML/차트만 생성")
     parser.add_argument("--skip-charts", action="store_true", help="차트 생성 건너뛰기 (빠른 디버깅용)")
-    parser.add_argument("--skip-ai", action="store_true", help="Gemini API 호출 건너뛰기 (기본값 사용)")
+    parser.add_argument("--skip-ai", action="add_to_main_ai", default=False, help="Gemini API 호출 건너뛰기 (기본값 사용)") if hasattr(argparse, "add_to_main_ai") else parser.add_argument("--skip-ai", action="store_true", help="Gemini API 호출 건너뛰기 (기본값 사용)")
+    parser.add_argument("--list-categories", action="store_true", help="연결된 티스토리 블로그의 카테고리 목록 및 ID 조회")
 
     args = parser.parse_args()
+
+    if args.list_categories:
+        publisher = TistoryPublisher()
+        categories = publisher.get_categories()
+        if categories:
+            print("\n📂 [티스토리 블로그 카테고리 목록]")
+            print("-" * 50)
+            print(f"{'카테고리 ID':<15} | {'카테고리 이름'}")
+            print("-" * 50)
+            for c in categories:
+                print(f"{c.get('id', ''):<15} | {c.get('name', '')} (글 {c.get('entries', '0')}개)")
+            print("-" * 50)
+            print("💡 특정 카테고리에 글을 올리려면 위 ID 번호를 .env의 TISTORY_CATEGORY_ID에 입력하세요.")
+        return
+
     run_pipeline(
         date_str=args.date,
         dry_run=args.dry_run,

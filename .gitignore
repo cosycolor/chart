@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .env
+.env.*
 local_secrets.env
 venv/
 .venv/
@@ -13,6 +14,11 @@ env/
 output/
 *.png
 *.html
+*.jpg
+*.jpeg
+
+# Markdown files (요청: 모든 MD 파일 제외)
+*.md
 
 # IDE / OS
 .vscode/

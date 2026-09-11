@@ -1,4 +1,5 @@
 import os
+import re
 import base64
 import requests
 from typing import List, Dict, Any
@@ -78,26 +79,15 @@ class TistoryPublisher:
             # 2~3개 대표 기사 목록 렌더링
             articles_html = ""
             if top_articles:
-                articles_html = '<div style="margin-top: 15px; border-top: 1px dashed #dee2e6; padding-top: 12px;">'
-                articles_html += '<div style="font-size: 13px; font-weight: bold; color: #495057; margin-bottom: 8px;">📰 관련 핵심 뉴스 기사 (직접 링크)</div>'
+                articles_html = '<div style="margin-top: 15px; border-top: 1px dashed #dee2e6; padding-top: 12px;"><div style="font-size: 13px; font-weight: bold; color: #495057; margin-bottom: 8px;">📰 관련 핵심 뉴스 기사</div>'
                 for a_idx, art in enumerate(top_articles[:3], 1):
-                    art_title = art.get("title", "")
-                    art_url = art.get("url", "")
+                    art_title = art.get("title", "").replace('"', '&quot;')
+                    raw_url = art.get("url", "")
+                    # 티스토리 에디터의 http:// 자동 링크 치환 버그 우회 (프로토콜 상대 URL // 적용)
+                    art_url = re.sub(r'^https?:', '', raw_url)
                     art_media = art.get("media", "언론사")
                     if art_url and art_title:
-                        articles_html += f"""
-                        <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 10px;">
-                            <div style="font-size: 13px; color: #212529; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                <span style="background: #dee2e6; color: #495057; font-size: 11px; padding: 1px 5px; border-radius: 3px; margin-right: 5px;">{art_media}</span>
-                                <strong>{art_title}</strong>
-                            </div>
-                            <div style="flex-shrink: 0;">
-                                <a href="{art_url}" target="_blank" rel="noopener noreferrer" style="display: inline-block; background: #228be6; color: #ffffff; text-decoration: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 600;">
-                                    기사 보기 ↗
-                                </a>
-                            </div>
-                        </div>
-                        """
+                        articles_html += f'<div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px;"><span style="background: #dee2e6; color: #495057; font-size: 11px; padding: 2px 6px; border-radius: 3px; margin-right: 6px; font-weight: bold;">{art_media}</span><a href="{art_url}" target="_blank" rel="noopener noreferrer" style="color: #1971c2; text-decoration: underline; font-weight: 600;">{art_title} ↗</a></div>'
                 articles_html += '</div>'
 
             badge_text = "🔥 상한가" if s['is_upper_limit'] else "🚀 1,000만주 대량거래"
@@ -129,7 +119,7 @@ class TistoryPublisher:
 
                 <!-- AI 상승 이유 분석 박스 -->
                 <div style="background: #fff9db; border-left: 4px solid #fcc419; padding: 14px 16px; border-radius: 4px; margin: 15px 0;">
-                    <div style="font-weight: bold; color: #e67700; font-size: 14px; margin-bottom: 6px;">💡 핵심 상승 요인 (AI 팩트체크)</div>
+                    <div style="font-weight: bold; color: #e67700; font-size: 14px; margin-bottom: 6px;">💡 핵심 상승 요인</div>
                     <div style="font-size: 15px; font-weight: 700; color: #212529; line-height: 1.5; margin-bottom: 8px;">{core_reason}</div>
                     <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
                         {details_html}
@@ -150,7 +140,7 @@ class TistoryPublisher:
             <!-- 상단 헤더 배너 -->
             <div style="background: linear-gradient(135deg, #1864ab 0%, #0b7285 100%); color: #ffffff; padding: 25px 20px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
                 <h1 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 800;">📊 {date_formatted} 상한가 & 1,000만주 특징주 총정리</h1>
-                <p style="margin: 0; font-size: 14px; opacity: 0.9;">한국거래소(KRX) 공식 데이터 기반 급등 원인 팩트체크 및 40일봉 차트 분석</p>
+                <p style="margin: 0; font-size: 14px; opacity: 0.9;">한국거래소(KRX) 공식 데이터 기반 급등 원인 및 40일봉 차트 분석</p>
             </div>
 
             <!-- 요약 안내 문구 -->
@@ -261,3 +251,30 @@ class TistoryPublisher:
         except Exception as e:
             print(f"❌ 티스토리 포스팅 요청 에러: {e}")
             return False
+
+    def get_categories(self) -> List[Dict[str, Any]]:
+        """
+        내 티스토리 블로그의 카테고리 목록과 카테고리 ID를 조회합니다.
+        """
+        if not self.access_token or not self.blog_name:
+            print("⚠️ TISTORY_ACCESS_TOKEN 또는 TISTORY_BLOG_NAME이 설정되지 않았습니다.")
+            return []
+
+        url = "https://www.tistory.com/apis/category/list"
+        params = {
+            "access_token": self.access_token,
+            "blogName": self.blog_name,
+            "output": "json"
+        }
+
+        try:
+            res = requests.get(url, params=params, timeout=10)
+            if res.status_code == 200:
+                data = res.json().get("tistory", {}).get("item", {}).get("categories", [])
+                return data
+            else:
+                print(f"⚠️ 카테고리 조회 실패 ({res.status_code}): {res.text}")
+                return []
+        except Exception as e:
+            print(f"⚠️ 카테고리 조회 중 에러: {e}")
+            return []
