@@ -45,7 +45,8 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
     print(f"\n📊 총 {len(stocks)}개 종목이 조건에 선정되었습니다:")
     for idx, s in enumerate(stocks, 1):
         tag_str = ", ".join(s['tags'])
-        print(f"  {idx}. {s['name']} ({s['code']}) | +{s['change_rate']}% | 거래량: {s['volume_str']} [{tag_str}]")
+        sign = "+" if s['change_rate'] > 0 else ""
+        print(f"  {idx}. {s['name']} ({s['code']}) | {sign}{s['change_rate']}% | 거래량: {s['volume_str']} [{tag_str}]")
 
     # 2. 40일봉 차트 생성
     image_map = {}

@@ -93,6 +93,10 @@ class TistoryPublisher:
             badge_text = "🔥 상한가" if s['is_upper_limit'] else "🚀 1,000만주 대량거래"
             badge_bg = "#e03131" if s['is_upper_limit'] else "#1971c2"
 
+            # 등락률 기호 및 색상 계산
+            card_rate_color = "#e03131" if s['change_rate'] > 0 else ("#1971c2" if s['change_rate'] < 0 else "#495057")
+            card_rate_sign = "+" if s['change_rate'] > 0 else ""
+
             stock_cards_html += f"""
             <div style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
                 <!-- 헤더 영역 -->
@@ -108,7 +112,7 @@ class TistoryPublisher:
 
                 <!-- 핵심 수치 요약 바 -->
                 <div style="background: #f8f9fa; border-radius: 8px; padding: 12px 16px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; font-size: 13px;">
-                    <div><strong>종가:</strong> {s['close']:,}원 <span style="color: #e03131; font-weight: bold;">(+{s['change_rate']}%)</span></div>
+                    <div><strong>종가:</strong> {s['close']:,}원 <span style="color: {card_rate_color}; font-weight: bold;">({card_rate_sign}{s['change_rate']}%)</span></div>
                     <div><strong>거래량:</strong> {s['volume_str']}</div>
                     <div><strong>시가총액:</strong> {s['market_cap_str']}</div>
                     <div><strong>최근분기 매출:</strong> {s.get('quarter_revenue', '-')} (순익: {s.get('quarter_net_income', '-')})</div>
