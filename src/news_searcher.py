@@ -1,5 +1,6 @@
 import os
 import re
+import html
 import urllib.parse
 import requests
 from bs4 import BeautifulSoup
@@ -8,7 +9,7 @@ from typing import List, Dict, Any
 class NewsSearcher:
     """
     종목별 당일 주요 뉴스 기사 및 특징주 소식을 수집하는 모듈
-    (다음 실시간 뉴스 검색 + 네이버 증권 뉴스 + 네이버 공식 검색 API 지원)
+    (네이버 증권 종목코드 전용 뉴스 1순위 + 다음 실시간 특징주 검색 2순위)
     """
 
     def __init__(self):
@@ -24,17 +25,20 @@ class NewsSearcher:
         """
         all_news = []
 
-        # 1. 다음 실시간 뉴스 검색 (가장 안정적으로 직접 링크 제공)
-        daum_news = self._search_daum_news(stock_name, max_count=6)
-        all_news.extend(daum_news)
-
-        # 2. 네이버 모바일 증권 종목별 뉴스 (보조)
-        if len(all_news) < 3 and ticker:
-            stock_news = self._search_naver_stock_api(ticker, max_count=4)
+        # 1. [1순위] 네이버 모바일 증권 종목코드(ticker) 전용 뉴스 (동음이의어 노이즈 0% 차단)
+        if ticker:
+            stock_news = self._search_naver_stock_api(ticker, max_count=5)
             all_news.extend(stock_news)
 
-        # 3. 네이버 공식 검색 API (키 있을 시)
-        if self.naver_client_id and self.naver_client_secret:
+        # 2. [2순위] 다음 실시간 뉴스 검색 ('종목명 특징주' / '종목명 주가' 타겟팅)
+        if len(all_news) < 3:
+            daum_news = self._search_daum_news(f"{stock_name} 특징주", max_count=4)
+            if not daum_news:
+                daum_news = self._search_daum_news(f"{stock_name} 주가", max_count=4)
+            all_news.extend(daum_news)
+
+        # 3. [3순위] 네이버 공식 검색 API (키 있을 시)
+        if self.naver_client_id and self.naver_client_secret and len(all_news) < 3:
             naver_api_news = self._search_via_naver_api(stock_name, max_count=4)
             all_news.extend(naver_api_news)
 
@@ -43,12 +47,14 @@ class NewsSearcher:
         seen_urls = set()
         seen_titles = set()
 
-        # 제외할 키워드
         junk_titles = ["동영상 첨부된 문서", "포토", "사진", "인사", "부고", "동정"]
 
         for item in all_news:
-            title = item.get("title", "").strip()
+            raw_title = item.get("title", "").strip()
             link = item.get("link", "").strip()
+
+            # HTML 엔티티 디코딩 (&quot; -> ", &amp; -> & 등)
+            title = html.unescape(raw_title)
 
             if not link or not title or len(title) < 6:
                 continue
@@ -57,8 +63,7 @@ class NewsSearcher:
             if link in seen_urls:
                 continue
             
-            # 제목 정규화 (공백/괄호 정리)
-            clean_title = re.sub(r'\s+', ' ', title)
+            clean_title = re.sub(r'\s+', ' ', title).strip()
             if clean_title in seen_titles:
                 continue
 
@@ -73,8 +78,37 @@ class NewsSearcher:
 
         return unique_news[:max_count]
 
+    def _search_naver_stock_api(self, ticker: str, max_count: int) -> List[Dict[str, str]]:
+        """네이버 모바일 증권 종목별 뉴스 API (해당 종목 전용 기사 매핑)"""
+        url = f"https://m.stock.naver.com/api/news/stock/{ticker}?pageSize={max_count}&page=1"
+        results = []
+        try:
+            res = requests.get(url, headers=self.headers, timeout=5)
+            if res.status_code == 200:
+                data = res.json()
+                # data 구조: [{'total': 1, 'items': [...]}, ...] 또는 {'items': [...]}
+                group_list = data if isinstance(data, list) else [data]
+                for group in group_list:
+                    for item in group.get("items", []):
+                        raw_title = item.get("titleFull") or item.get("title") or ""
+                        title = html.unescape(raw_title)
+                        link = item.get("mobileNewsUrl", "")
+                        media = item.get("officeName", "증권뉴스")
+                        if title and link:
+                            results.append({
+                                "title": title,
+                                "link": link,
+                                "description": item.get("body", ""),
+                                "media": media
+                            })
+                            if len(results) >= max_count:
+                                break
+        except Exception:
+            pass
+        return results
+
     def _search_daum_news(self, query: str, max_count: int) -> List[Dict[str, str]]:
-        """다음 실시간 뉴스 검색 (v.daum.net 직접 링크)"""
+        """다음 실시간 뉴스 검색"""
         encoded_query = urllib.parse.quote(query)
         url = f"https://search.daum.net/search?w=news&q={encoded_query}&sort=recency"
         results = []
@@ -85,7 +119,8 @@ class NewsSearcher:
                 seen_in_page = set()
                 for a in soup.find_all("a"):
                     href = a.get("href", "")
-                    title = a.text.strip()
+                    raw_title = a.text.strip()
+                    title = html.unescape(raw_title)
                     if "v.daum.net/v/" in href and len(title) >= 8 and href not in seen_in_page:
                         seen_in_page.add(href)
                         results.append({
@@ -96,30 +131,6 @@ class NewsSearcher:
                         })
                         if len(results) >= max_count:
                             break
-        except Exception:
-            pass
-        return results
-
-    def _search_naver_stock_api(self, ticker: str, max_count: int) -> List[Dict[str, str]]:
-        """네이버 모바일 증권 뉴스 API"""
-        url = f"https://m.stock.naver.com/api/news/stock/{ticker}?pageSize={max_count}&page=1"
-        results = []
-        try:
-            res = requests.get(url, headers=self.headers, timeout=5)
-            if res.status_code == 200:
-                data = res.json()
-                items = data.get("items", []) if isinstance(data, dict) else []
-                for item in items:
-                    title = item.get("title", "") or item.get("titleFull", "")
-                    link = item.get("mobileNewsUrl", "")
-                    media = item.get("officeName", "네이버증권")
-                    if title and link:
-                        results.append({
-                            "title": title,
-                            "link": link,
-                            "description": item.get("body", ""),
-                            "media": media
-                        })
         except Exception:
             pass
         return results
@@ -139,7 +150,7 @@ class NewsSearcher:
             if res.status_code == 200:
                 data = res.json()
                 for item in data.get("items", []):
-                    title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+                    title = html.unescape(re.sub(r'<[^>]+>', '', item.get("title", "")))
                     link = item.get("originallink") or item.get("link", "")
                     results.append({
                         "title": title,
