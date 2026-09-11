@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+local_secrets.env
+venv/
+.venv/
+env/
+
+# Output files
+output/
+*.png
+*.html
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
