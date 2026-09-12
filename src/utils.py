@@ -43,16 +43,19 @@ def format_korean_number(val: float, unit: str = "원") -> str:
 
     if val >= 1_000_000_000_000:
         cho = int(val // 1_000_000_000_000)
-        eok = int((val % 1_000_000_000_000) // 100_000_000)
+        eok = round((val % 1_000_000_000_000) / 100_000_000)
+        if eok >= 10_000:
+            cho += 1
+            eok -= 10_000
         res = f"{cho}조 {eok:,}억" if eok > 0 else f"{cho}조"
-    elif val >= 100_000_000:
-        eok = int(val // 100_000_000)
+    elif val >= 50_000_000:  # 5,000만원 이상은 반올림하여 억 단위 표기 (예: 9.96억 -> 10억원)
+        eok = round(val / 100_000_000)
         res = f"{eok:,}억"
     elif val >= 10_000:
-        man = int(val // 10_000)
+        man = round(val / 10_000)
         res = f"{man:,}만"
     else:
-        res = f"{int(val):,}"
+        res = f"{round(val):,}"
 
     prefix = "-" if is_negative else ""
     return f"{prefix}{res}{unit}"
