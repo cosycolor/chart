@@ -62,12 +62,10 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
                 change_rate=s['change_rate']
             )
             if img_path and os.path.exists(img_path):
-                if dry_run:
-                    # report_YYYYMMDD.html이 output/ 폴더에 있으므로 상대경로 charts/파일명 지정
-                    rel_path = f"charts/{os.path.basename(img_path)}"
-                    image_map[s['code']] = rel_path
-                else:
-                    image_map[s['code']] = img_path
+                # 로컬 HTML 및 이메일 클라이언트(네이버/Gmail 등)에서 엑박 없이 바로 보이도록 Base64 인라인 인코딩
+                with open(img_path, "rb") as img_f:
+                    b64_data = base64.b64encode(img_f.read()).decode("utf-8")
+                    image_map[s['code']] = f"data:image/png;base64,{b64_data}"
                 print(f"  ✅ 차트 완료: {s['name']} -> {img_path}")
     else:
         print("\n⏩ 차트 생성을 건너뜁니다.")
@@ -123,8 +121,8 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
     if not dry_run and os.getenv("TISTORY_ACCESS_TOKEN"):
         for s in stocks:
             code = s['code']
-            local_img = image_map.get(code)
-            if local_img and os.path.exists(local_img):
+            local_img = f"output/charts/{target_date}_{code}.png"
+            if os.path.exists(local_img):
                 print(f"  📤 [{s['name']}] 티스토리 이미지 업로드 중...")
                 replacer_or_url = publisher.upload_image_to_tistory(local_img)
                 if replacer_or_url:
