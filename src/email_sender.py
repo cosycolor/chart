@@ -15,8 +15,9 @@ class EmailSender:
         self.sender_email = os.getenv("EMAIL_SENDER", "").strip()
         self.sender_password = os.getenv("EMAIL_PASSWORD", "").strip()
         self.receiver_email = os.getenv("EMAIL_RECEIVER", "").strip() or os.getenv("MAIL_RECEIVER", "").strip() or self.sender_email
-        self.smtp_server = os.getenv("SMTP_SERVER", "smtp.naver.com").strip()
-        self.smtp_port = int(os.getenv("SMTP_PORT", "465"))
+        self.smtp_server = os.getenv("SMTP_SERVER", "").strip() or "smtp.naver.com"
+        port_env = os.getenv("SMTP_PORT", "").strip()
+        self.smtp_port = int(port_env) if port_env.isdigit() else 465
 
     def send_report_email(self, target_date: str, html_content: str, attachment_path: Optional[str] = None, seo_title: str = "", seo_tags: str = "") -> bool:
         """
