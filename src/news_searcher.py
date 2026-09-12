@@ -48,7 +48,14 @@ class NewsSearcher:
         seen_urls = set()
         seen_titles = set()
 
-        junk_titles = ["동영상 첨부된 문서", "포토", "사진", "인사", "부고", "동정", "[서울데이터랩]코스피", "[증시키워드]", "IPO 명가"]
+        junk_titles = [
+            "동영상 첨부된 문서", "포토", "사진", "인사", "부고", "동정", 
+            "[서울데이터랩]", "[증시키워드]", "IPO 명가", "[급등락주 짚어보기]", 
+            "[EBN 데이터센터]", "데이터센터", "마감 시황", "장마감", "증시 요약", 
+            "외국인·기관", "오늘의 메모", "거래대금", "상위 50종목", "지수 휘청", 
+            "증시 브리핑", "코스피 6", "코스피 7", "코스피 5", "코스피 2", "코스피 3", "코스피 4",
+            "마감...외국인", "코스피 마감", "코스닥 마감", "증시 캘린더"
+        ]
 
         for item in all_news:
             raw_title = item.get("title", "").strip()
@@ -81,6 +88,10 @@ class NewsSearcher:
             desc = item.get("description", "")
             if stock_name in desc:
                 relevance_score += 2
+
+            # 제목에 종목명이 전혀 없고 연관도 점수가 0인 경우(단순 시황 검색에 잡힌 경우) 배제
+            if stock_name not in clean_title and relevance_score <= 0:
+                continue
 
             unique_news.append({
                 "title": clean_title,

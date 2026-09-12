@@ -58,38 +58,34 @@ class GeminiStockAnalyzer:
 {news_context}
 
 [분석 및 판별 가이드라인 (엄격 준수)]
-1. **기사 최신성 및 당일 재료 필수 검증**:
-   - 반드시 **기준일자({target_date_formatted}) 당일 또는 직전 1~2거래일 이내**에 발생한 직접적인 최신 뉴스/호재/공시(예: 수주, 실적, 신사업, 정책, 테마 등)만을 상승 이유로 채택하세요.
-   - **절대 수주 전 또는 수개월 전(과거) 기사를 오늘의 상승 이유로 설명하지 마세요.**
-2. **종목과의 직접적인 연관성 검증 (노이즈 배제)**:
-   - 기사의 핵심 내용이 대상 종목 '{stock_info['name']}'과 직접적으로 관련된 기사만 채택하세요.
-   - **증권사 비리/IPO 논란, 지수 종합 브리핑, 타사 실적 기사 등 단순히 본문에 종목명이 스쳐 지나가는 무관한 기사는 절대 채택하지 마세요.**
-   - 만약 수집된 기사 중 대상 종목의 직접적인 호재 기사가 없는 경우, 억지로 무관한 기사를 엮지 말고 **"당일 특정 개별 호재 공시는 확인되지 않으며, 대량 거래량 유입 및 관련 테마 순환매에 따른 기술적 수급 집중으로 추정"**과 같이 사실대로 정확하게 기술하세요.
-3. **대표 기사(`top_articles`) 엄선**:
-   - 대상 종목과 직접적인 연관성이 확인된 신뢰할 수 있는 기사만 1~2개 포함하세요.
-   - 연관성이 낮거나 무관한 기사만 있을 경우 `top_articles`를 빈 리스트 `[]`로 남겨두세요.
-4. 블로그 독자가 한눈에 읽기 쉽게 핵심 1문장 및 2~3개 불렛포인트로 정리하세요.
+1. **기사의 직접적 연관성 및 주체 검증 (노이즈 배제)**:
+   - 기사의 핵심 주인공(주어)이 반드시 대상 종목 '{stock_info['name']}'이어야 합니다.
+   - **타 종목의 급등 기사 본문 끝에 단순히 동종업계나 관련주로 종목명이 스쳐 지나간 기사는 대상 종목의 상승 이유로 삼지 마세요.**
+   - **지수 종합 브리핑(코스피/코스닥 마감 등), 타사 실적/IPO 기사, 증시 일정 등 단순 나열식 기사는 절대 채택하지 마세요.**
+2. **직접 호재 부재 시 억지 추론 금지**:
+   - 수집된 기사 중 대상 종목 자체의 직접적인 호재(공시, 신사업, 수주, 턴어라운드 등)가 없는 경우, **절대로 무관한 타 종목 기사를 엮어서 지어내지 마세요.**
+   - 이 경우 반드시 **"당일 특정 개별 호재 공시는 확인되지 않으며, 대량 거래량 유입 및 관련 테마 순환매에 따른 기술적 수급 집중으로 추정"**과 같이 사실대로 서술하고 `top_articles`는 반드시 빈 배열 `[]`로 반환하세요.
+3. **기사 최신성 검증**:
+   - 반드시 **기준일자({target_date_formatted}) 당일 또는 직전 1~2거래일 이내**에 발생한 직접적인 최신 뉴스/공시만 채택하세요. 과거(수주 전, 수개월 전) 기사는 오늘의 이유로 설명하지 마세요.
+4. **대표 기사(`top_articles`) 엄선**:
+   - 대상 종목 '{stock_info['name']}'이 제목 또는 본문의 핵심 주체로서 직접적인 호재/원인이 확인된 기사만 최대 2개 포함하세요.
+   - 직접 연관성이 떨어지는 기사만 있다면 **반드시 빈 리스트 `[]`**로 두세요.
 
 반드시 아래 JSON 형식으로만 답변하세요:
 ```json
 {{
-  "core_reason": "핵심 상승 이유 (1문장, 예: 젠슨 황 CEO의 AI 보안 발언에 따른 차세대 양자암호 보안 기술 수혜 부각)",
+  "core_reason": "핵심 상승 이유 (1문장, 예: AI 데이터센터 증설에 따른 전력 변압기 공급 계약 체결로 실적 성장 기대감 부각)",
   "detail_points": [
     "상세 이유 및 배경 1",
     "상세 이유 및 배경 2",
     "상세 이유 및 배경 3 (필요시)"
   ],
-  "theme_keywords": ["보안", "AI", "양자암호"],
+  "theme_keywords": ["테마1", "테마2", "테마3"],
   "top_articles": [
     {{
       "title": "기사 헤드라인 제목 1",
       "url": "기사 직접 링크 URL 1",
       "media": "언론사명 1"
-    }},
-    {{
-      "title": "기사 헤드라인 제목 2",
-      "url": "기사 직접 링크 URL 2",
-      "media": "언론사명 2"
     }}
   ]
 }}
@@ -113,9 +109,20 @@ class GeminiStockAnalyzer:
                 cleaned_json = re.sub(r'\s*```$', '', cleaned_json, flags=re.MULTILINE).strip()
                 
                 parsed = json.loads(cleaned_json)
-                # top_articles 보장
-                if "top_articles" not in parsed or not parsed["top_articles"]:
-                    parsed["top_articles"] = self._build_top_articles_from_news(news_list)
+                
+                # top_articles 검증: LLM이 반환하지 않았거나 누락된 경우에만 안전하게 처리
+                if "top_articles" not in parsed:
+                    parsed["top_articles"] = []
+                else:
+                    # 반환된 기사들 중에서도 종목명 연관성이 유효한 기사만 최종 필터링
+                    valid_articles = []
+                    for art in parsed.get("top_articles", []):
+                        art_title = art.get("title", "")
+                        art_url = art.get("url", "")
+                        if art_title and art_url:
+                            valid_articles.append(art)
+                    parsed["top_articles"] = valid_articles
+
                 return parsed
 
             except Exception as e:
@@ -132,27 +139,27 @@ class GeminiStockAnalyzer:
         return self._generate_fallback_response(stock_info, news_list, "분석 중 오류 발생")
 
     def _build_top_articles_from_news(self, news_list: List[Dict[str, str]], stock_code: str = "", stock_name: str = "") -> List[Dict[str, str]]:
-        """뉴스 목록에서 유효한 최근 기사만 추출, 없으면 네이버 증권 시황 링크 제공"""
+        """뉴스 목록에서 종목명과 직접 연관된 기사만 추출"""
         articles = []
         for n in news_list[:3]:
-            # 기사 제목과 URL이 유효하고, 종목명 연관도 점수가 있거나 적절한 기사만
-            if n.get("title") and n.get("link"):
-                # 점수가 0 이하이고 무관한 제목인 경우 건너뛰기
-                if stock_name and stock_name not in n.get("title", "") and n.get("score", 0) <= 0:
-                    continue
-                articles.append({
-                    "title": n.get("title", ""),
-                    "url": n.get("link", ""),
-                    "media": n.get("media", "언론사")
-                })
+            # 기사 제목에 종목명이 직접 포함되어 있고 링크가 유효한 경우만
+            title = n.get("title", "")
+            link = n.get("link", "")
+            if title and link:
+                if stock_name and stock_name in title:
+                    articles.append({
+                        "title": title,
+                        "url": link,
+                        "media": n.get("media", "언론사")
+                    })
+                elif n.get("score", 0) >= 10:
+                    articles.append({
+                        "title": title,
+                        "url": link,
+                        "media": n.get("media", "언론사")
+                    })
         
-        if not articles and stock_code:
-            articles = [{
-                "title": f"{stock_name or '종목'} 네이버 증권 실시간 시황 바로가기",
-                "url": f"https://finance.naver.com/item/main.naver?code={stock_code}",
-                "media": "네이버증권"
-            }]
-        return articles
+        return articles[:2]
 
     def _generate_fallback_response(self, stock_info: Dict[str, Any], news_list: List[Dict[str, str]], reason: str) -> Dict[str, Any]:
         """API 미연결 시 수집된 실기사 기반 Fallback"""
