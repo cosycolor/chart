@@ -14,7 +14,7 @@ class EmailSender:
     def __init__(self):
         self.sender_email = os.getenv("EMAIL_SENDER", "").strip()
         self.sender_password = os.getenv("EMAIL_PASSWORD", "").strip()
-        self.receiver_email = os.getenv("EMAIL_RECEIVER", "").strip()
+        self.receiver_email = os.getenv("EMAIL_RECEIVER", "").strip() or os.getenv("MAIL_RECEIVER", "").strip() or self.sender_email
         self.smtp_server = os.getenv("SMTP_SERVER", "smtp.naver.com").strip()
         self.smtp_port = int(os.getenv("SMTP_PORT", "465"))
 
