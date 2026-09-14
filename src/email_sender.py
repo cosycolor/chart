@@ -19,10 +19,10 @@ class EmailSender:
         port_env = os.getenv("SMTP_PORT", "").strip()
         self.smtp_port = int(port_env) if port_env.isdigit() else 465
 
-    def send_report_email(self, target_date: str, html_content: str, attachment_path: Optional[str] = None, seo_title: str = "", seo_tags: str = "") -> bool:
+    def send_report_email(self, target_date: str, html_content: str, attachment_path: Optional[str] = None, seo_title: str = "", seo_tags: str = "", thumbnail_path: Optional[str] = None) -> bool:
         """
-        완성된 리포트 HTML을 본문으로 넣고 .html 파일을 첨부하여 이메일을 발송합니다.
-        (SEO 최적화 제목 및 복사용 추천 태그 포함)
+        완성된 리포트 HTML을 본문으로 넣고 .html 파일 및 대표 썸네일 이미지를 첨부하여 이메일을 발송합니다.
+        (SEO 최적화 제목, 복사용 추천 태그, 대표 썸네일 이미지 포함)
         """
         if not self.sender_email or not self.sender_password:
             print("⚠️ EMAIL_SENDER 또는 EMAIL_PASSWORD가 설정되지 않아 이메일 발송을 건너뜁니다.")
@@ -39,15 +39,34 @@ class EmailSender:
         msg["Subject"] = subject
 
         import html as html_lib
+        import base64
         escaped_html = html_lib.escape(html_content)
         escaped_title = html_lib.escape(final_seo_title)
         escaped_tags = html_lib.escape(seo_tags) if seo_tags else f"상한가,특징주,급등주,주식시황,{date_formatted}"
 
-        # 안내 문구 + SEO 제목/태그 복사 + 원클릭 복사 박스 + 본문 미리보기 HTML
+        # 대표 썸네일 인라인 Base64 이미지 태그 생성
+        thumbnail_html_block = ""
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            try:
+                with open(thumbnail_path, "rb") as img_f:
+                    b64_str = base64.b64encode(img_f.read()).decode("utf-8")
+                    thumbnail_html_block = f"""
+                    <!-- 대표 썸네일 이미지 영역 -->
+                    <div style="margin-bottom: 18px; background: #f8f9fa; border: 1px solid #ced4da; border-radius: 8px; padding: 12px; text-align: center;">
+                        <div style="font-size: 13px; font-weight: bold; color: #1971c2; margin-bottom: 8px; text-align: left;">🖼️ [대표 썸네일 이미지] (우클릭하여 '이미지 저장' ➔ 블로그 대표사진으로 지정):</div>
+                        <img src="data:image/png;base64,{b64_str}" alt="블로그 대표 썸네일" style="max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
+                    </div>
+                    """
+            except Exception:
+                pass
+
+        # 안내 문구 + SEO 제목/태그 복사 + 원클릭 복사 박스 + 썸네일 + 본문 미리보기 HTML
         intro_text = f"""
         <div style="background: #e7f5ff; border: 2px solid #339af0; padding: 20px; border-radius: 10px; margin-bottom: 25px; font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;">
             <h3 style="margin: 0 0 12px 0; color: #1864ab; font-size: 17px; font-weight: 800;">🚀 티스토리 글쓰기 원클릭 가이드 (SEO 최적화)</h3>
             
+            {thumbnail_html_block}
+
             <!-- 1. 추천 글 제목 -->
             <div style="margin-bottom: 12px;">
                 <div style="font-size: 13px; font-weight: bold; color: #1971c2; margin-bottom: 4px;">📌 [1단계] 복사용 추천 글 제목 (클릭 시 자동 선택):</div>
@@ -75,7 +94,7 @@ class EmailSender:
         html_part = MIMEText(full_html_body, "html", "utf-8")
         msg.attach(html_part)
 
-        # 첨부파일(.html) 추가
+        # 1. 첨부파일(.html 리포트) 추가
         if attachment_path and os.path.exists(attachment_path):
             try:
                 with open(attachment_path, "rb") as f:
@@ -83,7 +102,17 @@ class EmailSender:
                     part["Content-Disposition"] = f'attachment; filename="{os.path.basename(attachment_path)}"'
                     msg.attach(part)
             except Exception as e:
-                print(f"⚠️ 첨부파일 로드 실패: {e}")
+                print(f"⚠️ 리포트 첨부파일 로드 실패: {e}")
+
+        # 2. 첨부파일(대표 썸네일 이미지) 추가
+        if thumbnail_path and os.path.exists(thumbnail_path):
+            try:
+                with open(thumbnail_path, "rb") as f:
+                    part_img = MIMEApplication(f.read(), Name=os.path.basename(thumbnail_path))
+                    part_img["Content-Disposition"] = f'attachment; filename="{os.path.basename(thumbnail_path)}"'
+                    msg.attach(part_img)
+            except Exception as e:
+                print(f"⚠️ 썸네일 첨부파일 로드 실패: {e}")
 
         # 메일 발송
         try:

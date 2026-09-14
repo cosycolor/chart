@@ -19,6 +19,7 @@ load_dotenv()
 from src.utils import get_target_date, ensure_dir
 from src.collector import StockCollector
 from src.chart_generator import ChartGenerator
+from src.thumbnail_generator import ThumbnailGenerator
 from src.news_searcher import NewsSearcher
 from src.gemini_analyzer import GeminiStockAnalyzer
 from src.tistory_publisher import TistoryPublisher
@@ -48,8 +49,9 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
         sign = "+" if s['change_rate'] > 0 else ""
         print(f"  {idx}. {s['name']} ({s['code']}) | {sign}{s['change_rate']}% | 거래량: {s['volume_str']} [{tag_str}]")
 
-    # 2. 40일봉 차트 생성
+    # 2. 40일봉 차트 생성 및 블로그 대표 썸네일 생성
     image_map = {}
+    thumbnail_path = ""
     if not skip_charts:
         print("\n📈 [40일봉 캔들차트 생성 중...]")
         chart_gen = ChartGenerator(output_dir="output/charts")
@@ -67,8 +69,14 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
                     b64_data = base64.b64encode(img_f.read()).decode("utf-8")
                     image_map[s['code']] = f"data:image/png;base64,{b64_data}"
                 print(f"  ✅ 차트 완료: {s['name']} -> {img_path}")
+
+        print("\n🖼️ [블로그 대표 썸네일(1200x630) 생성 중...]")
+        thumb_gen = ThumbnailGenerator(output_dir="output/thumbnails")
+        thumbnail_path = thumb_gen.generate_thumbnail(target_date, stocks)
+        if thumbnail_path:
+            print(f"  ✅ 썸네일 완료 -> {thumbnail_path}")
     else:
-        print("\n⏩ 차트 생성을 건너뜁니다.")
+        print("\n⏩ 차트 및 썸네일 생성을 건너뜁니다.")
 
     # 3. 뉴스 스크랩 및 AI 상승이유 분석
     print("\n🔍 [뉴스 수집 및 Gemini LLM 상승 이유 분석...]")
@@ -177,7 +185,7 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
         seo_tags = ", ".join(unique_tags)
 
         emailer = EmailSender()
-        emailer.send_report_email(target_date, html_content, attachment_path=report_file, seo_title=seo_title, seo_tags=seo_tags)
+        emailer.send_report_email(target_date, html_content, attachment_path=report_file, seo_title=seo_title, seo_tags=seo_tags, thumbnail_path=thumbnail_path)
 
     print("\n✨ 모든 프로세스가 성공적으로 완료되었습니다!")
 
