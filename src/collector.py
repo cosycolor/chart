@@ -1,10 +1,18 @@
 import os
+import sys
 import re
 import requests
 import pandas as pd
 import FinanceDataReader as fdr
 from typing import List, Dict, Any
 from src.utils import format_korean_number, format_volume
+
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
 class StockCollector:
     """
@@ -35,17 +43,15 @@ class StockCollector:
             df['Marcap'] = pd.to_numeric(df['Marcap'], errors='coerce').fillna(0)
             df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
 
-            # 필터 조건: 상한가 (29.5% 이상) OR 거래량 10,000,000주 이상
-            is_upper_limit = df['ChagesRatio'] >= 29.5
-            is_high_volume = df['Volume'] >= 10_000_000
+            # 1차 후보 필터링: 상한가 근접(28.0% 이상) OR 거래량 950만주 이상
+            is_candidate_limit = df['ChagesRatio'] >= 28.0
+            is_candidate_vol = df['Volume'] >= 9_500_000
 
-            target_df = df[is_upper_limit | is_high_volume].copy()
-            target_df = target_df.sort_values(by=['ChagesRatio', 'Volume'], ascending=[False, False])
-
-            print(f"🎯 선별된 특징주 수: 총 {len(target_df)}개")
+            candidates_df = df[is_candidate_limit | is_candidate_vol].copy()
+            print(f"🔍 1차 후보 종목 수: {len(candidates_df)}개 (실제 당일 확정 시세 정밀 검증 시작...)")
 
             result = []
-            for _, row in target_df.iterrows():
+            for _, row in candidates_df.iterrows():
                 ticker = str(row['Code']).zfill(6)
                 name = str(row['Name'])
                 market = str(row['Market'])
@@ -55,8 +61,30 @@ class StockCollector:
                 marcap = int(row['Marcap'])
                 amount = int(row['Amount'])
 
+                # [중요] 2차 정밀 검증: DataReader를 통한 당일 최종 확정 일봉 시세 교차 검증
+                # (KRX 장중 고가 시점 왜곡 및 미정산 데이터 방지)
+                try:
+                    daily_df = fdr.DataReader(ticker).tail(1)
+                    if not daily_df.empty:
+                        last_row = daily_df.iloc[-1]
+                        real_close = int(last_row['Close'])
+                        real_change = round(float(last_row.get('Change', 0)) * 100, 2)
+                        real_volume = int(last_row['Volume'])
+
+                        # 확정 시세로 데이터 갱신
+                        close_price = real_close
+                        change_rate = real_change
+                        volume = real_volume
+                except Exception as e:
+                    pass
+
+                # 최종 확정 조건 검증: 상한가(29.5% 이상) OR 당일 최종 거래량 1,000만주 이상
                 is_limit = bool(change_rate >= 29.5)
                 is_vol = bool(volume >= 10_000_000)
+
+                if not (is_limit or is_vol):
+                    # 장중 일시 급등 후 종가 하락 등으로 조건을 불충족한 종목 제외
+                    continue
 
                 tags = []
                 if is_limit:
@@ -86,6 +114,9 @@ class StockCollector:
 
                 result.append(stock_info)
 
+            # 정렬: 상한가 우선, 이후 거래량 순
+            result.sort(key=lambda x: (x['is_upper_limit'], x['change_rate'], x['volume']), reverse=True)
+            print(f"🎯 최종 확정 특징주: 총 {len(result)}개")
             return result
 
         except Exception as e:
