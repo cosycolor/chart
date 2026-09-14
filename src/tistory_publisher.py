@@ -57,7 +57,7 @@ class TistoryPublisher:
                 else:
                     img_tag = f'''
                     <div style="text-align:center; margin: 15px 0;">
-                        <img src="{img_src}" alt="{s['name']} 40일봉 차트" style="max-width:100%; height:auto; border-radius:8px; border:1px solid #dee2e6; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" />
+                        <img src="{img_src}" alt="{s['name']}({s['code']}) 최근 40일 주가 일봉 차트 및 이동평균선(5일·10일·20일선)" title="{s['name']} 40일봉 차트" style="max-width:100%; height:auto; border-radius:8px; border:1px solid #dee2e6; box-shadow: 0 2px 8px rgba(0,0,0,0.06);" />
                         <div style="font-size: 12px; color: #495057; margin-top: 6px; font-weight: 500;">
                             ▲ {s['name']} 40일봉 차트 <span style="color:#f08c00; font-weight:bold;">[━ 5일선]</span> <span style="color:#2f9e44; font-weight:bold;">[━ 10일선]</span> <span style="color:#7048e8; font-weight:bold;">[━ 20일선]</span>
                         </div>
@@ -116,10 +116,10 @@ class TistoryPublisher:
 
             stock_cards_html += f"""
             <div style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
-                <!-- 헤더 영역 -->
+                <!-- 헤더 영역 (구글 SEO 최적화: h3 태그 적용) -->
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f1f3f5; padding-bottom: 12px; margin-bottom: 15px;">
                     <div>
-                        <span style="font-size: 20px; font-weight: 800; color: #212529;">{idx}. {s['name']}</span>
+                        <h3 style="margin: 0; font-size: 20px; font-weight: 800; color: #212529; display: inline-block;">{idx}. {s['name']}</h3>
                         <span style="font-size: 13px; color: #868e96; margin-left: 6px;">({s['code']} · {s['market']})</span>
                     </div>
                     <div>
@@ -155,12 +155,12 @@ class TistoryPublisher:
             </div>
             """
 
-        # 3. 전체 HTML 서식 조합
+        # 3. 전체 HTML 서식 조합 (H1 중복 방지를 위해 본문 타이틀 h2 적용)
         html = f"""
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; max-width: 800px; margin: 0 auto; color: #333333; line-height: 1.6;">
             <!-- 상단 헤더 배너 -->
             <div style="background: linear-gradient(135deg, #1864ab 0%, #0b7285 100%); color: #ffffff; padding: 25px 20px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
-                <h1 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 800;">📊 {date_formatted} 상한가 & 1,000만주 특징주 총정리</h1>
+                <h2 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 800;">📊 {date_formatted} 상한가 & 1,000만주 특징주 총정리</h2>
                 <p style="margin: 0; font-size: 14px; opacity: 0.9;">한국거래소(KRX) 공식 데이터 기반 핵심 특징주 변동 원인 및 40일봉 차트 분석</p>
             </div>
 
