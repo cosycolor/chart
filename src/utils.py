@@ -1,14 +1,16 @@
 import os
 import datetime
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 def get_target_date(input_date: str = None) -> str:
     """
     대상 기준일을 반환합니다 (YYYYMMDD 형식).
     input_date가 주어지면 그대로 검증 후 반환하고,
-    없으면 오늘 날짜를 기준으로 장마감(15:30) 이전이거나 주말인 경우 가장 최근 평일로 보정합니다.
+    없으면 한국 표준시(KST, UTC+9) 오늘 날짜를 기준으로 장마감(15:30) 이전이거나 주말인 경우 가장 최근 평일로 보정합니다.
     """
-    now = datetime.now()
+    # GitHub Actions 등 UTC 환경에서도 한국 표준시(KST, UTC+9) 기준으로 계산
+    kst = timezone(timedelta(hours=9))
+    now = datetime.now(kst)
     if input_date:
         # 형식 정리 (예: 2026-09-11 -> 20260911)
         cleaned = input_date.replace("-", "").replace(".", "").strip()
@@ -16,7 +18,7 @@ def get_target_date(input_date: str = None) -> str:
             return cleaned
 
     # 현재 시각 기준
-    # 15:30 이전이면 전일자 기준, 이후면 오늘자 기준 (주말 제외)
+    # 한국 시간 15:30 이전이면 전일자 기준, 이후면 오늘자 기준 (주말 제외)
     target = now
     if target.hour < 15 or (target.hour == 15 and target.minute < 30):
         target = target - timedelta(days=1)
