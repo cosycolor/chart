@@ -43,14 +43,34 @@ class GeminiStockAnalyzer:
 
         target_date_formatted = f"{target_date[:4]}-{target_date[4:6]}-{target_date[6:]}" if (target_date and len(target_date) == 8) else target_date
 
+        change_rate = stock_info['change_rate']
+        rate_sign = "+" if change_rate > 0 else ""
+        
+        if stock_info['is_upper_limit']:
+            trend_type = "상한가"
+            task_desc = "이 종목이 **상한가에 도달한 진짜 핵심 상승 이유**를 분석해주세요."
+            reason_hint = "핵심 상승 이유 (1문장, 예: AI 데이터센터 증설에 따른 전력 변압기 공급 계약 체결로 실적 성장 기대감 부각)"
+        elif change_rate > 0:
+            trend_type = f"주가 상승(+{change_rate}%) 및 1,000만주 이상 대량거래"
+            task_desc = f"이 종목이 **당일 주가 상승(+{change_rate}%) 및 대량 거래가 터진 핵심 상승 이유**를 분석해주세요."
+            reason_hint = f"핵심 상승 이유 (1문장, 예: 신규 수주 확대 및 3분기 흑자전환 기대감에 따른 매수세 유입)"
+        elif change_rate < 0:
+            trend_type = f"주가 하락({change_rate}%) 및 1,000만주 이상 대량거래"
+            task_desc = f"이 종목이 **당일 주가 하락({change_rate}%)을 기록하며 대량 거래가 터진 핵심 원인(차익실현 매물, 유상증자/CB, 단기 과열 해소, 악재 공시 등)**을 분석해주세요."
+            reason_hint = f"핵심 변동/하락 원인 (1문장, 예: 전일 급등에 따른 차익실현 매물 출회 및 대규모 거래량 유입)"
+        else:
+            trend_type = "보합(0.0%) 및 1,000만주 이상 대량거래"
+            task_desc = "이 종목이 **당일 대량 거래를 동반하며 치열한 매공방을 벌인 핵심 배경**을 분석해주세요."
+            reason_hint = "핵심 거래 요인 (1문장, 예: 테마 형성 기대감과 차익 실현 매물이 맞물리며 대량 거래량 수반)"
+
         prompt = f"""
 당신은 대한민국 주식 시장의 전문 애널리스트입니다.
-아래 제공된 종목 정보와 관련 뉴스 목록을 면밀히 분석하여, 기준일자({target_date_formatted}) 당일 이 종목이 급등(상한가 또는 대량거래)한 **진짜 핵심 상승 이유**를 판별해주세요.
+아래 제공된 종목 정보와 관련 뉴스 목록을 면밀히 분석하여, 기준일자({target_date_formatted}) 당일 {task_desc}
 
 [종목 정보]
 - 종목명: {stock_info['name']} ({stock_info['code']})
 - 기준일자: {target_date_formatted}
-- 당일 등락률: {stock_info['change_rate']}% ({'상한가' if stock_info['is_upper_limit'] else '대량거래 급등'})
+- 당일 등락률: {rate_sign}{change_rate}% ({trend_type})
 - 당일 거래량: {stock_info['volume_str']}
 - 시가총액: {stock_info['market_cap_str']}
 
@@ -60,11 +80,11 @@ class GeminiStockAnalyzer:
 [분석 및 판별 가이드라인 (엄격 준수)]
 1. **기사의 직접적 연관성 및 주체 검증 (노이즈 배제)**:
    - 기사의 핵심 주인공(주어)이 반드시 대상 종목 '{stock_info['name']}'이어야 합니다.
-   - **타 종목의 급등 기사 본문 끝에 단순히 동종업계나 관련주로 종목명이 스쳐 지나간 기사는 대상 종목의 상승 이유로 삼지 마세요.**
+   - **타 종목의 급등 기사 본문 끝에 단순히 동종업계나 관련주로 종목명이 스쳐 지나간 기사는 대상 종목의 원인으로 삼지 마세요.**
    - **지수 종합 브리핑(코스피/코스닥 마감 등), 타사 실적/IPO 기사, 증시 일정 등 단순 나열식 기사는 절대 채택하지 마세요.**
-2. **직접 호재 부재 시 억지 추론 금지**:
-   - 수집된 기사 중 대상 종목 자체의 직접적인 호재(공시, 신사업, 수주, 턴어라운드 등)가 없는 경우, **절대로 무관한 타 종목 기사를 엮어서 지어내지 마세요.**
-   - 이 경우 반드시 **"당일 특정 개별 호재 공시는 확인되지 않으며, 대량 거래량 유입 및 관련 테마 순환매에 따른 기술적 수급 집중으로 추정"**과 같이 사실대로 서술하고 `top_articles`는 반드시 빈 배열 `[]`로 반환하세요.
+2. **직접 호재/악재 부재 시 억지 추론 금지**:
+   - 수집된 기사 중 대상 종목 자체의 직접적인 원인이 확인되지 않는 경우, **절대로 무관한 타 종목 기사를 엮어서 지어내지 마세요.**
+   - 이 경우 반드시 **"당일 특정 개별 공시는 확인되지 않으며, 대량 거래량 유입에 따른 기술적 수급 변동으로 추정"**과 같이 사실대로 서술하고 `top_articles`는 반드시 빈 배열 `[]`로 반환하세요.
 3. **기사 최신성 검증**:
    - 반드시 **기준일자({target_date_formatted}) 당일 또는 직전 1~2거래일 이내**에 발생한 직접적인 최신 뉴스/공시만 채택하세요. 과거(수주 전, 수개월 전) 기사는 오늘의 이유로 설명하지 마세요.
 4. **대표 기사(`top_articles`) 엄선**:
@@ -74,7 +94,7 @@ class GeminiStockAnalyzer:
 반드시 아래 JSON 형식으로만 답변하세요:
 ```json
 {{
-  "core_reason": "핵심 상승 이유 (1문장, 예: AI 데이터센터 증설에 따른 전력 변압기 공급 계약 체결로 실적 성장 기대감 부각)",
+  "core_reason": "{reason_hint}",
   "detail_points": [
     "상세 이유 및 배경 1",
     "상세 이유 및 배경 2",
@@ -142,7 +162,6 @@ class GeminiStockAnalyzer:
         """뉴스 목록에서 종목명과 직접 연관된 기사만 추출"""
         articles = []
         for n in news_list[:3]:
-            # 기사 제목에 종목명이 직접 포함되어 있고 링크가 유효한 경우만
             title = n.get("title", "")
             link = n.get("link", "")
             if title and link:
@@ -171,16 +190,29 @@ class GeminiStockAnalyzer:
                 first_title = art.get('title', '')
                 break
 
+        change_rate = stock_info['change_rate']
+        rate_sign = "+" if change_rate > 0 else ""
+
         detail_points = [
-            f"당일 등락률: +{stock_info['change_rate']}% (거래량: {stock_info['volume_str']})",
+            f"당일 등락률: {rate_sign}{change_rate}% (거래량: {stock_info['volume_str']})",
             f"최근 실적: 매출 {stock_info.get('quarter_revenue', '-')}, 당기순익 {stock_info.get('quarter_net_income', '-')}"
         ]
         if first_title:
             detail_points.insert(0, f"관련 주요 보도: {first_title}")
 
+        if change_rate > 0:
+            core_reason = f"{stock_info['name']} 당일 +{change_rate}% 상승 및 대량 거래량({stock_info['volume_str']}) 유입"
+            theme_kw = [stock_info['market'], "특징주", "급등주"]
+        elif change_rate < 0:
+            core_reason = f"{stock_info['name']} 당일 {change_rate}% 하락 및 대량 거래량({stock_info['volume_str']}) 발생"
+            theme_kw = [stock_info['market'], "특징주", "대량거래"]
+        else:
+            core_reason = f"{stock_info['name']} 당일 보합 마감 및 대량 거래량({stock_info['volume_str']}) 발생"
+            theme_kw = [stock_info['market'], "특징주", "대량거래"]
+
         return {
-            "core_reason": f"{stock_info['name']} 당일 {stock_info['change_rate']}% 급등 및 대량 거래량({stock_info['volume_str']}) 유입",
+            "core_reason": core_reason,
             "detail_points": detail_points,
-            "theme_keywords": [stock_info['market'], "특징주", "급등주"],
+            "theme_keywords": theme_kw,
             "top_articles": top_articles
         }

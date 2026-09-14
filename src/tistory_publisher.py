@@ -97,6 +97,23 @@ class TistoryPublisher:
             card_rate_color = "#e03131" if s['change_rate'] > 0 else ("#1971c2" if s['change_rate'] < 0 else "#495057")
             card_rate_sign = "+" if s['change_rate'] > 0 else ""
 
+            # 등락률에 따른 AI 분석 박스 스타일 및 헤더 텍스트 분기
+            if s['change_rate'] > 0:
+                box_bg = "#fff9db"
+                box_border = "#fcc419"
+                box_title_color = "#e67700"
+                box_title_text = "💡 핵심 상승 요인"
+            elif s['change_rate'] < 0:
+                box_bg = "#e7f5ff"
+                box_border = "#339af0"
+                box_title_color = "#1c7ed6"
+                box_title_text = "📉 주가 하락 및 대량 거래 요인"
+            else:
+                box_bg = "#f8f9fa"
+                box_border = "#adb5bd"
+                box_title_color = "#495057"
+                box_title_text = "⚖️ 대량 거래 및 주가 변동 요인"
+
             stock_cards_html += f"""
             <div style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
                 <!-- 헤더 영역 -->
@@ -121,9 +138,9 @@ class TistoryPublisher:
                 <!-- 40일봉 차트 이미지 -->
                 {img_tag}
 
-                <!-- AI 상승 이유 분석 박스 -->
-                <div style="background: #fff9db; border-left: 4px solid #fcc419; padding: 14px 16px; border-radius: 4px; margin: 15px 0;">
-                    <div style="font-weight: bold; color: #e67700; font-size: 14px; margin-bottom: 6px;">💡 핵심 상승 요인</div>
+                <!-- AI 원인 분석 박스 -->
+                <div style="background: {box_bg}; border-left: 4px solid {box_border}; padding: 14px 16px; border-radius: 4px; margin: 15px 0;">
+                    <div style="font-weight: bold; color: {box_title_color}; font-size: 14px; margin-bottom: 6px;">{box_title_text}</div>
                     <div style="font-size: 15px; font-weight: 700; color: #212529; line-height: 1.5; margin-bottom: 8px;">{core_reason}</div>
                     <ul style="margin: 0; padding-left: 20px; font-size: 13px;">
                         {details_html}
@@ -144,12 +161,12 @@ class TistoryPublisher:
             <!-- 상단 헤더 배너 -->
             <div style="background: linear-gradient(135deg, #1864ab 0%, #0b7285 100%); color: #ffffff; padding: 25px 20px; border-radius: 12px; margin-bottom: 25px; text-align: center;">
                 <h1 style="margin: 0 0 10px 0; font-size: 24px; font-weight: 800;">📊 {date_formatted} 상한가 & 1,000만주 특징주 총정리</h1>
-                <p style="margin: 0; font-size: 14px; opacity: 0.9;">한국거래소(KRX) 공식 데이터 기반 급등 원인 및 40일봉 차트 분석</p>
+                <p style="margin: 0; font-size: 14px; opacity: 0.9;">한국거래소(KRX) 공식 데이터 기반 핵심 특징주 변동 원인 및 40일봉 차트 분석</p>
             </div>
 
             <!-- 요약 안내 문구 -->
             <p style="font-size: 14px; color: #495057; margin-bottom: 15px;">
-                오늘 장 마감 기준 <strong>상한가에 도달했거나 거래량 1,000만 주 이상</strong>이 터진 핵심 특징주 <strong>총 {len(stocks)}종목</strong>의 상승 이유와 차트 흐름을 정리했습니다.
+                오늘 장 마감 기준 <strong>상한가에 도달했거나 거래량 1,000만 주 이상</strong>이 터진 핵심 특징주 <strong>총 {len(stocks)}종목</strong>의 등락 요인과 차트 흐름을 정리했습니다.
             </p>
 
             <!-- 1. 한눈에 보는 요약 표 -->

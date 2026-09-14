@@ -101,15 +101,31 @@ def run_pipeline(date_str: str = None, dry_run: bool = False, skip_charts: bool 
                     "media": "네이버증권"
                 }]
 
-            first_title = top_articles[0]['title'] if top_articles else f"{s['name']} 급등"
+            rate = s['change_rate']
+            rate_sign = "+" if rate > 0 else ""
+            first_title = top_articles[0]['title'] if top_articles else f"{s['name']} 특징주"
+
+            if rate > 0:
+                core_reason = f"{s['name']} 당일 +{rate}% 상승 및 대량 거래량({s['volume_str']}) 유입"
+                theme_kw = [s['market'], "특징주", "급등주"]
+            elif rate < 0:
+                core_reason = f"{s['name']} 당일 {rate}% 하락 및 대량 거래량({s['volume_str']}) 발생"
+                theme_kw = [s['market'], "특징주", "대량거래"]
+            else:
+                core_reason = f"{s['name']} 당일 보합 마감 및 대량 거래량({s['volume_str']}) 발생"
+                theme_kw = [s['market'], "특징주", "대량거래"]
+
+            detail_pts = [
+                f"당일 등락률: {rate_sign}{rate}% (거래량: {s['volume_str']})",
+                f"최근 실적: 매출 {s.get('quarter_revenue', '-')}, 당기순익 {s.get('quarter_net_income', '-')}"
+            ]
+            if first_title and "시황 바로가기" not in first_title:
+                detail_pts.insert(0, f"주요 보도: {first_title}")
 
             s['ai_analysis'] = {
-                "core_reason": f"{s['name']} 당일 {s['change_rate']}% 급등 및 대량 거래량({s['volume_str']}) 유입",
-                "detail_points": [
-                    f"주요 보도: {first_title}",
-                    f"거래량: {s['volume_str']}, 시가총액: {s['market_cap_str']}"
-                ],
-                "theme_keywords": [s['market'], "특징주", "급등주"],
+                "core_reason": core_reason,
+                "detail_points": detail_pts,
+                "theme_keywords": theme_kw,
                 "top_articles": top_articles
             }
 
