@@ -47,6 +47,13 @@ class ChartGenerator:
             df = df.tail(40).copy()
             df.index = pd.to_datetime(df.index)
 
+            # 거래정지/무거래 등으로 Open, High, Low가 0인 비정상 데이터는 종가(Close) 기준으로 보정
+            zero_mask = (df['Open'] == 0) & (df['Close'] > 0)
+            if zero_mask.any():
+                df.loc[zero_mask, 'Open'] = df.loc[zero_mask, 'Close']
+                df.loc[zero_mask, 'High'] = df.loc[zero_mask, 'Close']
+                df.loc[zero_mask, 'Low'] = df.loc[zero_mask, 'Close']
+
             # 한국형 캔들 스타일 (상승: 빨간색, 하락: 파란색)
             mc = mpf.make_marketcolors(
                 up='#e03131',
